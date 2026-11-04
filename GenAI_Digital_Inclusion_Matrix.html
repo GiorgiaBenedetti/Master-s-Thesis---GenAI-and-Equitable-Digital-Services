@@ -106,6 +106,7 @@
     transform:translateY(var(--stick,0px));box-shadow:0 5px 9px -6px rgba(36,26,48,.3);transition:opacity .12s;}
   .dm-board.stuck .sticky-strip{opacity:1;}
   .dm-board.stuck .col-head{background:#fff;}
+  .dm-board.stuck .col-head::before{content:'';position:absolute;left:-62px;right:-62px;top:-400px;bottom:-14px;background:#fff;z-index:-1;pointer-events:none;}
 
   /* zoom controls (bottom right) */
   .zoom-ctl{position:absolute;right:48px;bottom:16px;z-index:45;display:flex;align-items:center;gap:6px;background:#fff;
@@ -1179,7 +1180,7 @@
   // (48 px margins). The "camera" (scale + translation, applied as one CSS transform) then frames it: Fit to screen,
   // zoom, pan. Layout work (rendering, measuring) always happens with the transform removed, so every measured
   // coordinate is a true board coordinate.
-  var MARGIN_X = 48, MIN_GAP = 44, FIT_FLOOR = 0.92, MIN_S = 0.3, MAX_S = 3, STICK_TOP = 58;   // headers stick below the Back control
+  var MARGIN_X = 48, MIN_GAP = 44, FIT_FLOOR = 0.3, GAP_SCALE = 0.92, MIN_S = 0.3, MAX_S = 3, STICK_TOP = 58;   // headers stick below the Back control
   var cam = { s: 1, tx: MARGIN_X, ty: 60, fit: true };
   var layoutS0 = 1, boardW = 0, boardH = 0, camTimer = null, lastLinked = null;
   var zoomPct = document.getElementById('zoomPct');
@@ -1188,7 +1189,8 @@
     var cw = canvasWrap.clientWidth, ch = canvasWrap.clientHeight, W = boardW * cam.s, H = boardH * cam.s;
     cam.s = Math.max(MIN_S, Math.min(MAX_S, cam.s));
     W = boardW * cam.s; H = boardH * cam.s;
-    // free panning in every direction: the matrix can be dragged anywhere as long as a strip of it stays on screen
+    // limited panning: the column titles cannot be dragged below their starting place, and the matrix stops
+    // 48 px past its edges
     var EDGE = 48, TOP = 60;
     var minTx = Math.min(EDGE, cw - W - EDGE), maxTx = Math.max(EDGE, cw - W - EDGE);
     if (W + 2 * EDGE <= cw){ minTx = EDGE; maxTx = cw - W - EDGE; }
@@ -1236,7 +1238,7 @@
     board.style.setProperty('--stick', '0px');
     board.classList.remove('stuck');
     var cw = canvasWrap.clientWidth, ch = canvasWrap.clientHeight;
-    var availW = cw - 2 * MARGIN_X, availH = ch - 24;
+    var availW = cw - 2 * MARGIN_X, availH = ch - 60 - 24;   // 60: the row with Back above the columns
     var sumW = 0; cols.forEach(function(c){ sumW += c.offsetWidth; });
     var heads = board.querySelectorAll('.col-head'), hh = 0;
     Array.prototype.forEach.call(heads, function(h){ hh = Math.max(hh, h.offsetHeight); });
@@ -1244,7 +1246,9 @@
     var natH = board.offsetHeight || 1;
     var s0 = Math.min(1, Math.max(FIT_FLOOR, availH / natH));
     s0 = Math.min(s0, availW / (sumW + (cols.length - 1) * MIN_GAP));
-    var gap = Math.max(MIN_GAP, (availW / s0 - sumW) / Math.max(1, cols.length - 1));
+    // column spacing as in the tested matrix: computed for a scale of at least 0.92 (GAP_SCALE), even when the
+    // whole matrix is then shown smaller to fit its height (it is centred)
+    var gap = Math.max(MIN_GAP, (availW / Math.max(s0, GAP_SCALE) - sumW) / Math.max(1, cols.length - 1));
     board.style.gap = gap + 'px';
     GAP_BASE = gap; BOARD_GAP = gap; layoutS0 = s0;
   }
@@ -2955,7 +2959,7 @@
   })();
 
   renderAll();
-  // Standalone page: the matrix opens fitted to the window (Fit to screen).
+  // The matrix opens fitted: the whole matrix (all columns, top to bottom) is visible at once.
   var dmHome = null;
   function dmHomeCam(){
     cam.fit = true; fitCam();
